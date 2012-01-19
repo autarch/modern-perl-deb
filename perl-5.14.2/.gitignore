@@ -1,4 +1,5 @@
 build-stamp
+.pc
 .config/
 DynaLoader.o
 Makefile
