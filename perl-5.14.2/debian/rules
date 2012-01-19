@@ -70,6 +70,15 @@ perl:
 	$(MAKE)  -j 8 perl $(test_target)
 	mv libperl.a libperl-static
 
+clean:
+	$(checkdir)
+	$(checkroot)
+	test -f $(patches)	# maintainer sanity check
+	[ ! -f Makefile ] || $(MAKE) distclean
+	rm -rf config.over perl./deb libperl.so* \
+	    patchlevel.bak build-stamp install-stamp t/auto debian/shlibs.local \
+	    debian/substvars debian/files debian/list.tmp $(tmp) $(build)
+
 install-stamp: build-stamp
 	$(checkdir)
 	$(checkroot)
