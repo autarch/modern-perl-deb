@@ -17,13 +17,14 @@ version     := $(shell /bin/bash debian/config.debian --version)
 installtype := $(shell /bin/bash debian/config.debian --install-type)
 test_target := $(shell /bin/bash debian/config.debian --test-target)
 strip	    := $(shell /bin/bash debian/config.debian --strip)
+archname    := $(shell /bin/bash debian/config.debian --archname)
 srcdir      := $(shell pwd)
 packages    := $(shell sed -n 's/^Package: *\(.*\)/\1/p' debian/control)
 tmp	    = debian/tmp
-bin         = $(tmp)/usr/bin
-man         = $(tmp)/usr/share/man
-lib         = $(tmp)/usr/lib/perl/$(version)
-share       = $(tmp)/usr/share/perl/$(version)
+bin         = $(tmp)/opt/perl$(fullversion)/bin
+man         = $(tmp)/opt/perl$(fullversion)/man
+lib         = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)/$(archname)
+share       = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)
 build	    = debian/build
 debug       = $(build)/perl-debug/usr/lib/debug
 patches     = debian/patches/series
@@ -45,7 +46,7 @@ patchlevelpatch = patchlevel
 
 # control file substitutions
 subst_upstream = -VUpstream-Version=$(package_upstream_version)
-subst_perlapi  = -Vperlapi:Provides="`./perl.static debian/mkprovides`"
+subst_perlapi  = -Vperlapi:Provides="`./perl debian/mkprovides`"
 subst_next_upstream = -VNext-Upstream-Version=$(nextversion)
 
 # for ext/Compress-Raw-Bzip2
@@ -65,6 +66,7 @@ perl:
 	[ ! -f Makefile ] || $(MAKE) distclean
 	$(SHELL) debian/config.debian --shared
 	$(MAKE) perl $(test_target)
+	mv libperl.a libperl-static
 
 install-stamp: build-stamp
 	$(checkdir)
@@ -73,20 +75,18 @@ install-stamp: build-stamp
 	rm -rf $(tmp) $(build)
 
 	$(MAKE) install
-	# remove temporary prefix on install vars and switch man
-	# extensions to 1p and 3pm for vendor module installs
-	SRCDIR="$(srcdir)" ./perl.static -i -pe 's!\Q$$ENV{SRCDIR}\E/$(tmp)/!/! if /install/;' \
-	    -e 's/^(man1ext=).*/$$1'\''1p'\''/;' \
-	    -e 's/^(man3ext=).*/$$1'\''3pm'\''/;' \
+	# remove temporary prefix on install vars
+	SRCDIR="$(srcdir)" ./perl -i -pe 's!\Q$$ENV{SRCDIR}\E/$(tmp)/!/! if /install/;' \
 		$(lib)/Config.pm $(lib)/Config_heavy.pl
 
 	# convert required header files
-	-cd /usr/include; $(srcdir)/perl.static -I $(srcdir)/lib \
+	-cd /usr/include; $(srcdir)/perl -I $(srcdir)/lib \
 	    $(srcdir)/utils/h2ph -a -d $(srcdir)/$(lib) \
 		`cat $(srcdir)/debian/headers`
 
 	# fix up generated headers
-	./perl.static -Ilib debian/fixheaders $(lib)
+	# XXX - is this needed with 5.14.2 ?
+	# ./perl -Ilib debian/fixheaders $(lib)
 
 	# simple wrapper around Errno module
 	cp debian/errno.ph $(lib)
@@ -97,7 +97,7 @@ ifeq (,$(findstring x-perl-notest,$(DEB_BUILD_OPTIONS)))
 	for ph in `< $(srcdir)/debian/headers sed -e 's/\.h$$/.ph/'`; do \
 		if [ ! -f $(srcdir)/$(lib)/$$ph ]; then \
 			echo "$$ph: missing"; else \
-		$(srcdir)/perl.static -I $(srcdir)/$(lib) -I $(srcdir)/$(share) -e \
+		$(srcdir)/perl -I $(srcdir)/$(lib) -I $(srcdir)/$(share) -e \
 			"print '"$$ph": '; require '"$$ph"'; print \"ok\n\";" \
 				|| exit 1; \
 		fi; \
@@ -107,7 +107,6 @@ endif
 
 	# remove some cruft
 	rm -f $(lib)/.packlist
-	rm -f $(lib)/CORE/sperl.o
 
 	# installperl copies the symlinks as a files
 	rm -f $(lib)/CORE/libperl.so $(lib)/CORE/libperl.so.$(version)
@@ -115,23 +114,11 @@ endif
 	# remove versioned binary, relink after moving files
 	rm -f $(bin)/perl$(fullversion)
 
-	# relocate perl libraries and create links
-	cp libperl-static $(tmp)/usr/lib/libperl.a
-	mv $(lib)/CORE/libperl.so.$(fullversion) $(tmp)/usr/lib
-
-	ln -s libperl.so.$(fullversion) $(tmp)/usr/lib/libperl.so.$(version)
-	ln -s libperl.so.$(version) $(tmp)/usr/lib/libperl.so
-
-	# move to full version (symlinks created in perl-base below)
-	mv $(lib) $(tmp)/usr/lib/perl/$(fullversion)
-	mv $(share) $(tmp)/usr/share/perl/$(fullversion)
-
-ifeq ($(installtype),static)
-	cp perl.static $(bin)/perl
-endif
+	ln -s libperl.so.$(fullversion) $(tmp)/$(lib)/libperl.so.$(version)
+	ln -s libperl.so.$(version) $(tmp)/$(lib)/libperl.so
 
 	# install debug binary as debugperl
-	cp perl.debug $(bin)/debugperl
+	# cp perl.debug $(bin)/debugperl
 
 	# split packages
 	for p in $(packages); \
@@ -146,54 +133,11 @@ endif
 		done) >debian/list.tmp; \
 	    (cd $(tmp); cpio -vdumpl ../build/$$p) <debian/list.tmp 2>&1 | \
 		grep -v ' linked to '; \
-	    (cd $(tmp); ../../perl.static -nle unlink) <debian/list.tmp; \
+	    (cd $(tmp); ../../perl -nle unlink) <debian/list.tmp; \
 	done
 
 	# ensure that all file have been moved from debian/tmp
 	test `find $(tmp) ! -type d | wc -l` -eq 0
-
-	# move pod out of -base modules and into .pod files in -doc
-	./perl.static debian/splitdoc $(build)/perl-base
-
-	# create symlinks to match @INC
-	ln -s $(fullversion) $(build)/perl-base/usr/lib/perl/$(version)
-	ln -s $(fullversion) $(build)/perl-base/usr/share/perl/$(version)
-
-	# move section 1 manual pages back to perl for installed programs
-	mkdir -p $(build)/perl/usr/share/man/man1
-	find $(build)/perl/usr/bin -type f -printf "%f\n" | \
-	    while read prog; \
-	    do \
-		m=$(build)/perl-doc/usr/share/man/man1/$$prog.1; \
-		if test -f $$m; \
-		then \
-		    mv $$m $(build)/perl/usr/share/man/man1; \
-		else \
-		    echo "warning: no manual page for $$prog" >&2; \
-		fi; \
-	    done
-
-	# remove some linked man pages (symlinked later and cause
-	# problems as-is when compressing)
-	rm -f $(build)/perl/usr/share/man/man1/pstruct.1 \
-	    $(build)/perl/usr/share/man/man1/perlthanks.1 \
-	    $(build)/perl/usr/share/man/man1/psed.1
-
-	# the diagnostics module needs perldiag.pod
-	mkdir $(build)/perl-modules/usr/share/perl/$(fullversion)/pod
-	mv $(build)/perl-doc/usr/share/perl/$(fullversion)/pod/perldiag.pod \
-	    $(build)/perl-modules/usr/share/perl/$(fullversion)/pod
-
-	# copy dummy perldoc to perl package
-	cp debian/perl.perldoc $(build)/perl/usr/bin/perldoc
-	chmod 755 $(build)/perl/usr/bin/perldoc
-
-	# install rename script to bin (as prename, alternative configured)
-	cp debian/rename $(build)/perl/usr/bin/prename
-	chmod 755 $(build)/perl/usr/bin/prename
-
-	./perl.static -Ilib $(build)/perl/usr/bin/pod2man --official \
-	    debian/rename >$(build)/perl/usr/share/man/man1/prename.1
 
 	# install docs
 	for p in $(packages); \
@@ -223,26 +167,8 @@ endif
 	    fi; \
 	done
 
-	# move module docs to /usr/share/doc/perl
-	while read src target; \
-	do \
-	    doc=$(build)/perl-doc/usr/share/doc/perl/$$target; \
-	    test -d $$doc || mkdir $$doc; \
-	    mv $(build)/perl-modules/usr/share/perl/$(fullversion)/$$src $$doc; \
-	done <debian/perl-doc.moduledocs
-
-	# remove empty directories left after moving module docs
-	find $(build)/perl-modules/usr/share/perl/$(fullversion) \
-	    -depth -type d -empty | xargs -r rmdir
-
-	# want these in /etc since /usr may not be writable
-	mkdir -p $(build)/perl-modules/etc/perl/CPAN \
-	    $(build)/perl-modules/etc/perl/Net
-
-	# default configuration for libnet
-	cp debian/libnet.cfg $(build)/perl-modules/etc/perl/Net
-
 	# compress
+	# XXX - needs fixing
 	find $(build)/*/usr/share/man -type f -print | xargs -r gzip -9
 	find $(build)/*/usr/share/doc -type f \
 	    \( -name changelog\* -o \( -size +4k ! -name copyright \) \) \
@@ -308,7 +234,7 @@ binary-indep: build-stamp install-stamp
 	$(checkdir)
 	$(checkroot)
 	rm -f debian/substvars
-	for p in `./perl.static -l -00ne 'print $$1 if /^Architecture:\s+all/m \
+	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+all/m \
 	    and /^Package:\s+(.*)/m' debian/control`; \
 	do \
 	    rm -rf $(build)/$$p/DEBIAN; \
@@ -344,7 +270,7 @@ else
 	    >debian/perl-base.shlibs
 endif
 
-	for p in `./perl.static -l -00ne 'print $$1 if /^Architecture:\s+any/m \
+	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+any/m \
 	    and /^Package:\s+(.*)/m' debian/control`; \
 	do \
 	    rm -rf $(build)/$$p/DEBIAN debian/substvars; \
@@ -360,7 +286,7 @@ endif
 		>$(build)/$$p/DEBIAN/md5sums; \
 	done
 	# dpkg-shlibdeps needs to be run only after all the shlibs are present
-	for p in `./perl.static -l -00ne 'print $$1 if /^Architecture:\s+any/m \
+	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+any/m \
 	    and /^Package:\s+(.*)/m' debian/control`; \
 	do \
 	    find $(build)/$$p/usr -type f \

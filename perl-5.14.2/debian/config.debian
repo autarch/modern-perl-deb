@@ -14,6 +14,20 @@ multiarch_dir=${DEB_HOST_MULTIARCH:-$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/
 optimize=-O2
 debugging=-g
 
+# This is a hack to do something vaguely like what Perl does to determine the
+# arch name, except it only works on one OS.
+osname=''
+case `uname -s` in
+    Linux)
+        osname=linux;;
+    *)
+        echo "Cannot determine osname from uname -s"
+        exit 1;;
+esac
+
+machinename=`uname -m`
+archname="$machinename-$osname"
+
 case "$1" in
     --static) # static perl
     	build_type=static
@@ -63,6 +77,9 @@ case "$1" in
 	    i386)			exec echo static;;
 	    *)				exec echo shared;;
 	esac;;
+
+    --archname)
+	exec echo $archname;;
 
     *)	echo "$0: need --shared, --static, or --debug option"
     	exit 2;;
