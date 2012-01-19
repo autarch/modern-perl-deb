@@ -65,7 +65,9 @@ perl:
 	rm -f libperl.so* # must be built last
 	[ ! -f Makefile ] || $(MAKE) distclean
 	$(SHELL) debian/config.debian --shared
-	$(MAKE) perl $(test_target)
+	# -j 8 works on my system - this should probably be optional or
+	# -parameterizable or something - dave
+	$(MAKE)  -j 8 perl $(test_target)
 	mv libperl.a libperl-static
 
 install-stamp: build-stamp
