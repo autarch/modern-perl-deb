@@ -40,7 +40,7 @@ case "$1" in
 
     --shared) # shared library
     	build_type=shared
-	opts="-Duseshrplib -Dlibperl=libperl.so.$fullver";;
+	opts="-Duseshrplib";;
 
     --version)
 	exec echo $ver;;

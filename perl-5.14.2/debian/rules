@@ -74,7 +74,7 @@ clean:
 	$(checkdir)
 	$(checkroot)
 	test -f $(patches)	# maintainer sanity check
-	[ ! -f Makefile ] || $(MAKE) distclean
+	[ ! -f Makefile ] || $(MAKE) -j 8 distclean
 	rm -rf config.over perl./deb libperl.so* \
 	    patchlevel.bak build-stamp install-stamp t/auto debian/shlibs.local \
 	    debian/substvars debian/files debian/list.tmp $(tmp) $(build)
@@ -119,14 +119,11 @@ endif
 	# remove some cruft
 	rm -f $(lib)/.packlist
 
-	# installperl copies the symlinks as a files
-	rm -f $(lib)/CORE/libperl.so $(lib)/CORE/libperl.so.$(version)
-
 	# remove versioned binary, relink after moving files
 	rm -f $(bin)/perl$(fullversion)
 
-	ln -s libperl.so.$(fullversion) $(tmp)/$(lib)/libperl.so.$(version)
-	ln -s libperl.so.$(version) $(tmp)/$(lib)/libperl.so
+	ln -s  $(tmp)/$(lib)/libperl.so libperl.so.$(fullversion)
+	ln -s  $(tmp)/$(lib)/libperl.so libperl.so.$(version)
 
 	# install debug binary as debugperl
 	# cp perl.debug $(bin)/debugperl
@@ -228,8 +225,7 @@ endif
 	    -print | xargs -r chmod 644
 
 	# links
-	ln -s perl.1.gz $(build)/perl-debug/usr/share/man/man1/debugperl.1.gz
-	ln -s perl.1.gz $(build)/perl-base/usr/share/man/man1/perl$(fullversion).1.gz
+	ln -s perl.1.gz $(build)/perl/usr/share/man/man1/perl$(fullversion).1.gz
 	ln -s c2ph.1.gz $(build)/perl/usr/share/man/man1/pstruct.1.gz
 	ln -s s2p.1.gz $(build)/perl/usr/share/man/man1/psed.1.gz
 	ln -s perlbug.1.gz $(build)/perl/usr/share/man/man1/perlthanks.1.gz
@@ -269,17 +265,10 @@ binary-indep: build-stamp install-stamp
 binary-arch: build-stamp install-stamp
 	$(checkdir)
 	$(checkroot)
-ifeq ($(installtype),static)
-	echo 'libperl $(version) libperl$(version) (= $${source:Version})' \
-	    >debian/shlibs.local
 
-	echo 'libperl $(version) libperl$(version) (>= $(fullversion))' \
-	    >debian/libperl$(version).shlibs
-else
 	echo 'libperl $(version)' >debian/shlibs.local
 	echo 'libperl $(version) libperl$(version) (>= $(fullversion))' \
-	    >debian/perl-base.shlibs
-endif
+	    >debian/perl-$(fullversion)-no-threads.shlibs
 
 	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+any/m \
 	    and /^Package:\s+(.*)/m' debian/control`; \
@@ -303,8 +292,7 @@ endif
 	    find $(build)/$$p/usr -type f \
 		\( -perm +111 -o -name \*.so\* \) -print | \
 		fgrep -v /usr/lib/debug/ | \
-		xargs -r dpkg-shlibdeps -S$(srcdir)/$(build)/libperl$(version) \
-		                        -S$(srcdir)/$(build)/perl-base 2>&1 | \
+		xargs -r dpkg-shlibdeps -S$(srcdir)/$(build)/perl-$(fullversion)-no-threads 2>&1 | \
 		fgrep -v 'File format not recognized'; # scripts \
 	    dpkg-gencontrol -p$$p -isp -P$(build)/$$p $(subst_perlapi) $(subst_upstream); \
 	    dpkg --build $(build)/$$p ..; \

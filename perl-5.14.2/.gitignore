@@ -1411,7 +1411,7 @@ lib/unicore/TestProp.pl
 lib/unicore/To/
 lib/unicore/lib/
 lib/unicore/mktables.lst
-libperl.so.5.14.2
+libperl.so
 locale.o
 makedepend
 makefile
