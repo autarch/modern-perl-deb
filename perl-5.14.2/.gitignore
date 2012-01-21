@@ -1538,3 +1538,9 @@ x2p/makefile
 x2p/makefile.old
 x2p/psed
 x2p/s2p
+x2p/a2p
+x2p/a2p.o
+x2p/find2perl
+x2p/hash.o
+x2p/str.o
+x2p/walk.o
