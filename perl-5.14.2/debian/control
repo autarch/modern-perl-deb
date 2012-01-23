@@ -2,17 +2,16 @@ Source: perl
 Section: perl
 Priority: extra
 Maintainer: Dave Rolsky <autarch@urth.org>
-Build-Depends: debhelper (>= 7.0.50~)
+Build-Depends: debhelper (>= 7.0.50~), file, libdb-dev, libgdbm-dev, netbase [!hurd-i386],
+ gcc (>= 4:4.2), procps | hurd, zlib1g-dev | libz-dev, libbz2-dev
 Standards-Version: 3.9.1
 Homepage: http://www.perl.org/
-Build-Depends: file, cpio (>= 2.6-5), libdb-dev, libgdbm-dev, netbase [!hurd-i386],
- gcc (>= 4:4.2), procps | hurd, zlib1g-dev | libz-dev, libbz2-dev
 
 Package: perl-5.14.2-no-threads
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Perl 5.14.2 without thread support
-
+ .
  This is an additional package of Perl for Debian based systems. It offers a
  modern version of Perl (5.14.2). Unlike the system Perl, it consists of a
  single package that installs the perl binary, perldoc, all core modules, and

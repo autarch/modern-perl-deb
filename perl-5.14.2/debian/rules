@@ -19,14 +19,13 @@ test_target := $(shell /bin/bash debian/config.debian --test-target)
 strip	    := $(shell /bin/bash debian/config.debian --strip)
 archname    := $(shell /bin/bash debian/config.debian --archname)
 srcdir      := $(shell pwd)
-packages    := $(shell sed -n 's/^Package: *\(.*\)/\1/p' debian/control)
+package_name := perl-$(fullversion)-no-threads
 tmp	    = debian/tmp
 bin         = $(tmp)/opt/perl$(fullversion)/bin
 man         = $(tmp)/opt/perl$(fullversion)/man
 lib         = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)/$(archname)
 share       = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)
 build	    = debian/build
-debug       = $(build)/perl-debug/usr/lib/debug
 patches     = debian/patches/series
 
 checkdir    = test -d debian
@@ -54,6 +53,9 @@ export BUILD_BZIP2=0
 export BZIP2_INCLUDE=/usr/include
 export BZIP2_LIB=/usr/lib
 
+# for running ./perl
+export LD_LIBRARY_PATH:=$(srcdir):$(LD_LIBRARY_PATH)
+
 build: build-stamp
 install: install-stamp
 
@@ -67,13 +69,12 @@ perl:
 	$(SHELL) debian/config.debian --shared
 	# -j 8 works on my system - this should probably be optional or
 	# -parameterizable or something - dave
-	$(MAKE)  -j 8 perl $(test_target)
-	mv libperl.a libperl-static
+	$(MAKE) -j 8 perl
 
 clean:
 	$(checkdir)
 	$(checkroot)
-	test -f $(patches)	# maintainer sanity check
+#	test -f $(patches)	# maintainer sanity check
 	[ ! -f Makefile ] || $(MAKE) -j 8 distclean
 	rm -rf config.over perl./deb libperl.so* \
 	    patchlevel.bak build-stamp install-stamp t/auto debian/shlibs.local \
@@ -82,223 +83,73 @@ clean:
 install-stamp: build-stamp
 	$(checkdir)
 	$(checkroot)
-	$(checkperl)
 	rm -rf $(tmp) $(build)
 
-	$(MAKE) install
+	$(MAKE) -j 8 install
+
 	# remove temporary prefix on install vars
 	SRCDIR="$(srcdir)" ./perl -i -pe 's!\Q$$ENV{SRCDIR}\E/$(tmp)/!/! if /install/;' \
 		$(lib)/Config.pm $(lib)/Config_heavy.pl
 
-	# convert required header files
-	-cd /usr/include; $(srcdir)/perl -I $(srcdir)/lib \
-	    $(srcdir)/utils/h2ph -a -d $(srcdir)/$(lib) \
-		`cat $(srcdir)/debian/headers`
-
-	# fix up generated headers
-	# XXX - is this needed with 5.14.2 ?
-	# ./perl -Ilib debian/fixheaders $(lib)
-
-	# simple wrapper around Errno module
-	cp debian/errno.ph $(lib)
-
-ifeq (,$(findstring nocheck,$(DEB_BUILD_OPTIONS)))
-ifeq (,$(findstring x-perl-notest,$(DEB_BUILD_OPTIONS)))
-	# Verify that the headers are usable
-	for ph in `< $(srcdir)/debian/headers sed -e 's/\.h$$/.ph/'`; do \
-		if [ ! -f $(srcdir)/$(lib)/$$ph ]; then \
-			echo "$$ph: missing"; else \
-		$(srcdir)/perl -I $(srcdir)/$(lib) -I $(srcdir)/$(share) -e \
-			"print '"$$ph": '; require '"$$ph"'; print \"ok\n\";" \
-				|| exit 1; \
-		fi; \
-	done
-endif
-endif
-
 	# remove some cruft
 	rm -f $(lib)/.packlist
 
-	# remove versioned binary, relink after moving files
-	rm -f $(bin)/perl$(fullversion)
+	# replace hard links with symlinks for benefit of gzip
+	(cd $(man)/man1; \
+		rm perlthanks.1; \
+		ln -s perlbug.1 perlthanks.1; \
+		rm pstruct.1; \
+		ln -s c2ph.1 pstruct.1; \
+		rm psed.1; \
+		ln -s s2p.1 psed.1;)
 
-	ln -s  $(tmp)/$(lib)/libperl.so libperl.so.$(fullversion)
-	ln -s  $(tmp)/$(lib)/libperl.so libperl.so.$(version)
+	mkdir -p $(tmp)/usr/local/bin
+	(cd $(tmp)/usr/local/bin; \
+		ln -s /opt/perl$(fullversion)/bin/perl perl5.14.2;)
 
-	# install debug binary as debugperl
-	# cp perl.debug $(bin)/debugperl
-
-	# split packages
-	for p in $(packages); \
-	do \
-	    mkdir -p $(build)/$$p; \
-	    (cd $(tmp); \
-	    	for sfx in '' .$(installtype); \
-		do \
-		    list=../$$p.files$$sfx; \
-		    test -s $$list || continue; \
-		    find `cat $$list` ! -type d; \
-		done) >debian/list.tmp; \
-	    (cd $(tmp); cpio -vdumpl ../build/$$p) <debian/list.tmp 2>&1 | \
-		grep -v ' linked to '; \
-	    (cd $(tmp); ../../perl -nle unlink) <debian/list.tmp; \
-	done
-
-	# ensure that all file have been moved from debian/tmp
-	test `find $(tmp) ! -type d | wc -l` -eq 0
-
-	# install docs
-	for p in $(packages); \
-	do \
-	    doc=$(build)/$$p/usr/share/doc; \
-	    test -d $$doc || mkdir -p $$doc; \
-	    if test -f debian/$$p.docs; \
-	    then \
-		while read src target; \
-		do \
-		    d=`expr $$target : '\([^/][^/]*\)'`; \
-		    test -d $$doc/$$d || mkdir $$doc/$$d; \
-		    cp -p $$src $$doc/$$target; \
-		done <debian/$$p.docs; \
-	    fi; \
-	    test -d $$doc/$$p || ln -s perl $$doc/$$p; \
-	done
-
-	# lintian overrides
-	for p in $(packages); \
-	do \
-	    if test -f debian/$$p.lintian-overrides; \
-	    then \
-	    d="$(build)/$$p/usr/share/lintian/overrides"; \
-	    mkdir -p $$d; \
-	    cp debian/$$p.lintian-overrides $$d/$$p; \
-	    fi; \
-	done
+	# make package directory
+	mkdir -p $(build)
+	cp -ar $(tmp)/* $(build)
 
 	# compress
 	# XXX - needs fixing
-	find $(build)/*/usr/share/man -type f -print | xargs -r gzip -9
-	find $(build)/*/usr/share/doc -type f \
-	    \( -name changelog\* -o \( -size +4k ! -name copyright \) \) \
-	    -print | xargs -r gzip -9
-
-ifeq ($(strip),yes)
-	# strip
-	find $(build)/*/usr/bin $(build)/*/usr/lib -type f \
-	    \( -name \*.so\* -o -name \*.a -o -perm +111 \) -print | \
-	    grep -v ^$(build)/perl-debug/ | \
-	    while read f; \
-	    do \
-		type=`file $$f`; \
-		extra=; \
-		case "$$type" in \
-		    *ELF*shared\ object*) \
-		    	extra=--strip-unneeded;; \
-		esac; \
-		case "$$type" in \
-		    *ELF*) \
-			path=/$${f#$(build)/*/}; \
-			dir=$${path%/*}; \
-			test -d $(debug)$$dir || mkdir -p $(debug)$$dir; \
-			# stash debugging symbols \
-			objcopy --only-keep-debug $$f $(debug)$$path; \
-			# strip \
-			strip --remove-section=.comment --remove-section=.note \
-			    $$extra $$f; \
-			# add debuglink \
-			objcopy --add-gnu-debuglink=$(debug)$$path $$f; \
-		esac; \
-	    done
-	    # versioned hardlink for the detached debug symbols
-	    ln $(debug)/usr/bin/perl \
-	        $(debug)/usr/bin/perl$(fullversion)
-endif
-
+	find $(build)/*/*/man -type f ! -name *.gz -print | xargs -r gzip -9
 
 	# fixperms
 	find $(build) -print | xargs -r chown -h root:root
 	find $(build) -type d -print | xargs -r chmod 755
 	find $(build) -type f -print | xargs -r chmod go=rX,u+rw,a-s
-	find $(build)/*/usr/bin -type f -print | xargs -r chmod a+x
-	find $(build)/*/usr/lib -type f -name \*.so\* -print | xargs -r chmod a-x
-	find $(build)/*/usr/share/doc $(build)/*/usr/share/man -type f \
-	    -print | xargs -r chmod 644
-
-	# links
-	ln -s perl.1.gz $(build)/perl/usr/share/man/man1/perl$(fullversion).1.gz
-	ln -s c2ph.1.gz $(build)/perl/usr/share/man/man1/pstruct.1.gz
-	ln -s s2p.1.gz $(build)/perl/usr/share/man/man1/psed.1.gz
-	ln -s perlbug.1.gz $(build)/perl/usr/share/man/man1/perlthanks.1.gz
-
-	ln -s changelog.gz $(build)/perl/usr/share/doc/perl/Changes.gz
-	ln -s ../perl/changelog.gz \
-	    $(build)/libcgi-fast-perl/usr/share/doc/libcgi-fast-perl/changelog.gz
+	find $(build)/*/*/bin -type f -print | xargs -r chmod a+x
+	find $(build)/*/*/lib -type f -name \*.so\* -print | xargs -r chmod a-x
+	find $(build)/*/*/man -type f -print | xargs -r chmod 644
 
 	touch $@
 
-# Build architecture-independent files here.
-binary-indep: build-stamp install-stamp
+binary: build-stamp install-stamp
 	$(checkdir)
 	$(checkroot)
 	rm -f debian/substvars
-	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+all/m \
-	    and /^Package:\s+(.*)/m' debian/control`; \
+	test -d $(build)/DEBIAN || mkdir $(build)/DEBIAN; \
+	chmod 755 $(build)/DEBIAN; \
+	for c in preinst postinst prerm postrm; \
 	do \
-	    rm -rf $(build)/$$p/DEBIAN; \
-	    mkdir $(build)/$$p/DEBIAN; \
-	    chmod 755 $(build)/$$p/DEBIAN; \
-	    for c in preinst postinst prerm postrm; \
-	    do \
-		test -f debian/$$p.$$c || continue; \
-		cp debian/$$p.$$c $(build)/$$p/DEBIAN/$$c; \
-		chmod 755 $(build)/$$p/DEBIAN/$$c; \
-	    done; \
-	    test -d $(build)/$$p/etc && find $(build)/$$p/etc -type f \
-		-printf '/etc/%P\n' >$(build)/$$p/DEBIAN/conffiles; \
-	    (cd $(build)/$$p; find usr -type f -print | xargs -r md5sum) \
-		>$(build)/$$p/DEBIAN/md5sums; \
-	    dpkg-gencontrol -p$$p -isp -P$(build)/$$p $(subst_upstream) $(subst_next_upstream); \
-	    dpkg --build $(build)/$$p ..; \
-	done
-
-# Build architecture-dependent files here.
-binary-arch: build-stamp install-stamp
-	$(checkdir)
-	$(checkroot)
-
-	echo 'libperl $(version)' >debian/shlibs.local
-	echo 'libperl $(version) libperl$(version) (>= $(fullversion))' \
-	    >debian/perl-$(fullversion)-no-threads.shlibs
-
-	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+any/m \
-	    and /^Package:\s+(.*)/m' debian/control`; \
-	do \
-	    rm -rf $(build)/$$p/DEBIAN debian/substvars; \
-	    mkdir $(build)/$$p/DEBIAN; \
-	    for c in preinst postinst prerm postrm shlibs; \
-	    do \
-		test -f debian/$$p.$$c || continue; \
-		cp debian/$$p.$$c $(build)/$$p/DEBIAN/$$c; \
-		chmod 755 $(build)/$$p/DEBIAN/$$c; \
-	    done; \
-	    ! test -f $(build)/$$p/DEBIAN/shlibs || chmod 644 $(build)/$$p/DEBIAN/shlibs; \
-	    (cd $(build)/$$p; find usr -type f -print | xargs -r md5sum) \
-		>$(build)/$$p/DEBIAN/md5sums; \
-	done
-	# dpkg-shlibdeps needs to be run only after all the shlibs are present
-	for p in `./perl -l -00ne 'print $$1 if /^Architecture:\s+any/m \
-	    and /^Package:\s+(.*)/m' debian/control`; \
-	do \
-	    find $(build)/$$p/usr -type f \
-		\( -perm +111 -o -name \*.so\* \) -print | \
-		fgrep -v /usr/lib/debug/ | \
-		xargs -r dpkg-shlibdeps -S$(srcdir)/$(build)/perl-$(fullversion)-no-threads 2>&1 | \
-		fgrep -v 'File format not recognized'; # scripts \
-	    dpkg-gencontrol -p$$p -isp -P$(build)/$$p $(subst_perlapi) $(subst_upstream); \
-	    dpkg --build $(build)/$$p ..; \
-	done
-
-binary: binary-indep binary-arch
+	test -f debian/$$c || continue; \
+	cp debian/$$c $(build)/DEBIAN/$$c; \
+	chmod 755 $(build)/DEBIAN/$$c; \
+	done; \
+	! test -f $(build)/DEBIAN/shlibs || chmod 644 $(build)/DEBIAN/shlibs; \
+	test -d $(build)/etc && find $(build)/etc -type f \
+	-printf '/etc/%P\n' >$(build)/DEBIAN/conffiles; \
+	(cd $(build); find opt -type f -print | xargs -r md5sum) \
+	>$(build)/DEBIAN/md5sums; \
+	find $(build)/*/*/lib -type f \
+	\( -perm +111 -o -name \*.so\* \) -print | \
+	fgrep -v /usr/lib/debug/ | \
+	xargs -r dpkg-shlibdeps -S$(srcdir)/$(build)/$(package_name) 2>&1 | \
+	fgrep -v 'File format not recognized'; # scripts \
+	dpkg-gencontrol -p$(package_name) -isp -P$(build) $(subst_perlapi) $(subst_upstream); \
+	dpkg-gencontrol -p$(package_name) -isp -P$(build) $(subst_upstream) $(subst_next_upstream); \
+	dpkg --build $(build) ..;
 
 # maintainer targets
 new-build: $(patches) refresh-patchlevel

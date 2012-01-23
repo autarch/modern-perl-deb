@@ -111,7 +111,7 @@ eval /bin/bash Configure			\
     -Duselargefiles				\
     -Dccflags=\'$ccflags\'			\
     -Dcccdlflags=-fPIC				\
-    -Darchname=$gnu_type			\
+    -Darchname=$archname			\
     -Dprefix=/opt/perl5.14.2			\
     -Dpager=/usr/bin/sensible-pager		\
     -Uafs					\
