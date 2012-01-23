@@ -1544,3 +1544,8 @@ x2p/find2perl
 x2p/hash.o
 x2p/str.o
 x2p/walk.o
+debian/build/
+debian/files
+debian/substvars
+debian/tmp/
+install-stamp
