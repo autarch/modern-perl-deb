@@ -32,10 +32,6 @@ checkdir    = test -d debian
 checkroot   = test `id -u` -eq 0
 checkperl   = $(SHELL) debian/checkperl
 
-# -j 8 works on my system - this should probably be optional or
-# -parameterizable or something - dave
-parallel    = -j 8
-
 # this may differ from $(fullversion) for release candidates and the like
 package_upstream_version = $(shell dpkg-parsechangelog | \
         sed -ne 's/-[^-]\+$$//; s/^Version: *\([0-9]\+:\)*//p')
@@ -69,15 +65,15 @@ build-stamp: perl
 perl:
 	$(checkdir)
 	rm -f libperl.so* # must be built last
-	[ ! -f Makefile ] || $(MAKE) $(parallel)distclean
+	[ ! -f Makefile ] || $(MAKE) distclean
 	$(SHELL) debian/config.debian --shared
-	$(MAKE) $(parallel) perl
+	$(MAKE) perl
 
 clean:
 	$(checkdir)
 	$(checkroot)
 #	test -f $(patches)	# maintainer sanity check
-	[ ! -f Makefile ] || $(MAKE) $(parallel) distclean
+	[ ! -f Makefile ] || $(MAKE) distclean
 	rm -rf config.over perl./deb libperl.so* \
 	    patchlevel.bak build-stamp install-stamp t/auto debian/shlibs.local \
 	    debian/substvars debian/files debian/list.tmp $(tmp) $(build)
@@ -87,7 +83,7 @@ install-stamp: build-stamp
 	$(checkroot)
 	rm -rf $(tmp) $(build)
 
-	$(MAKE) $(parallel) install
+	$(MAKE) install
 
 	# remove temporary prefix on install vars
 	SRCDIR="$(srcdir)" ./perl -i -pe 's!\Q$$ENV{SRCDIR}\E/$(tmp)/!/! if /install/;' \
