@@ -105,6 +105,10 @@ install-stamp: build-stamp
 	(cd $(tmp)/usr/local/bin; \
 		ln -s /opt/perl$(fullversion)/bin/perl perl5.14.2;)
 
+	(cd $(lib)/CORE; \
+		ln -s libperl.so libperl.so.$(fullversion); \
+		ln -s libperl.so libperl.so.$(version);)
+
 	# make package directory
 	mkdir -p $(build)
 	cp -ar $(tmp)/* $(build)
