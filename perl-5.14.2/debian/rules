@@ -25,6 +25,7 @@ bin         = $(tmp)/opt/perl$(fullversion)/bin
 man         = $(tmp)/opt/perl$(fullversion)/man
 lib         = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)/$(archname)
 share       = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)
+target      = /opt/perl$(fullversion)
 build	    = debian/build
 patches     = debian/patches/series
 
@@ -52,9 +53,6 @@ subst_next_upstream = -VNext-Upstream-Version=$(nextversion)
 export BUILD_BZIP2=0
 export BZIP2_INCLUDE=/usr/include
 export BZIP2_LIB=/usr/lib
-
-# for running ./perl
-export LD_LIBRARY_PATH:=$(srcdir):$(LD_LIBRARY_PATH)
 
 build: build-stamp
 install: install-stamp
@@ -103,11 +101,14 @@ install-stamp: build-stamp
 
 	mkdir -p $(tmp)/usr/local/bin
 	(cd $(tmp)/usr/local/bin; \
-		ln -s /opt/perl$(fullversion)/bin/perl perl5.14.2;)
+		ln -s $(target)/bin/perl perl5.14.2;)
 
+	# it's a lot easier to build Perl with the library named libperl.so
+	# initially
 	(cd $(lib)/CORE; \
-		ln -s libperl.so libperl.so.$(fullversion); \
-		ln -s libperl.so libperl.so.$(version);)
+		mv libperl.so libperl.so.$(fullversion); \
+		ln -s libperl.so.$(fullversion) libperl.so; \
+		ln -s libperl.so.$(fullversion) libperl.so.$(version);)
 
 	# make package directory
 	mkdir -p $(build)
@@ -132,6 +133,7 @@ binary: build-stamp install-stamp
 	$(checkroot)
 	rm -f debian/substvars
 	test -d $(build)/DEBIAN || mkdir $(build)/DEBIAN; \
+	echo 'libperl $(version) perl-$(fullversion)-no-threads (= 5.14.2)' >$(build)/DEBIAN/shlibs; \
 	chmod 755 $(build)/DEBIAN; \
 	for c in preinst postinst prerm postrm; \
 	do \

@@ -1491,6 +1491,7 @@ pp_hot.o
 pp_pack.o
 pp_sort.o
 pp_sys.o
+preload
 realclean.sh
 reentr.o
 regcomp.o
