@@ -32,12 +32,12 @@ case "$1" in
     --no-threads)
     	build_type=no-threads
 	    opts="-Duseshrplib -Uusethreads"
-        prefix="/opt/perl${fullversion}-no-threads";;
+        prefix="/opt/perl${fullver}-no-threads";;
 
     --threads)
     	build_type=threads
 	    opts="-Duseshrplib -Dusethreads"
-        prefix="/opt/perl${fullversion}-threads";;
+        prefix="/opt/perl${fullver}-threads";;
 
     --debug) # debugperl
     	build_type=debug
