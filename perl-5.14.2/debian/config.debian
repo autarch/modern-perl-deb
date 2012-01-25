@@ -30,83 +30,84 @@ archname="$machinename-$osname"
 
 case "$1" in
     --no-threads)
-    	build_type=no-threads
-	    opts="-Duseshrplib -Uusethreads"
+        build_type=no-threads
+        opts="-Duseshrplib -Uusethreads"
         prefix="/opt/perl${fullver}-no-threads";;
 
     --threads)
-    	build_type=threads
-	    opts="-Duseshrplib -Dusethreads"
+        build_type=threads
+        opts="-Duseshrplib -Dusethreads"
         prefix="/opt/perl${fullver}-threads";;
 
     --debug) # debugperl
-    	build_type=debug
-	    debugging=both # add -DDEBUGGING
-	    opts="-Uuseshrplib";;
+        build_type=debug
+        debugging=both # add -DDEBUGGING
+        opts="-Uuseshrplib";;
 
     --version)
-	    exec echo $ver;;
+        exec echo $ver;;
 
     --full-version)
-	    exec echo $fullver;;
+        exec echo $fullver;;
 
     --next-version)
-	    exec echo $nextver;;
+        exec echo $nextver;;
 
     --strip)
-    	case ",$DEB_BUILD_OPTIONS," in
-	        *[,\ ]nostrip[,\ ]*)	exec echo no;;
-	        *)				exec echo yes;;
-	    esac;;
+        case ",$DEB_BUILD_OPTIONS," in
+            *[,\ ]nostrip[,\ ]*)    exec echo no;;
+            *)              exec echo yes;;
+        esac;;
 
     --test-target)
-    	case ",$DEB_BUILD_OPTIONS," in
-	        *[,\ ]nocheck[,\ ]*)	exit;;
-	        *[,\ ]x-perl-notest[,\ ]*)	exit;;
-	        *)				exec echo test;;
-	    esac;;
+        case ",$DEB_BUILD_OPTIONS," in
+            *[,\ ]nocheck[,\ ]*)    exit;;
+            *[,\ ]x-perl-notest[,\ ]*)  exit;;
+            *)              exec echo test;;
+        esac;;
 
     --archname)
-	    exec echo $archname;;
+        exec echo $archname;;
 
-    *)	echo "$0: need --shared, --static, or --debug option"
-    	exit 2;;
+    *)  echo "$0: need --shared, --static, or --debug option"
+        exit 2;;
 esac
 
 case "$arch_cpu:$build_type" in
     sh4:*) # required to correctly handle floating point on sh4
-    	ccflags="$ccflags -mieee";;
+        ccflags="$ccflags -mieee";;
 
     m68k:shared) # work around an optimiser bug
-	    ccflags="$ccflags -fno-regmove";;
+        ccflags="$ccflags -fno-regmove";;
 esac
 
 case ",$DEB_BUILD_OPTIONS," in
     *[,\ ]noopt[,\ ]*)
-	    optimize="$optimize${optimize:+ }-O0";;
+        optimize="$optimize${optimize:+ }-O0";;
 esac
 
 if [ -n "$multiarch_dir" ]; then
-	extra_path="\"-Dplibpth=/lib/$multiarch_dir /usr/lib/$multiarch_dir\""
+    extra_path="\"-Dplibpth=/lib/$multiarch_dir /usr/lib/$multiarch_dir\""
 fi
 
 # post-configure tweaks
 cp debian/config.over .
 
 # need bash when sourcing config.over
-eval /bin/bash Configure			\
-    -Duselargefiles				\
-    -Dccflags=\'$ccflags\'			\
-    -Dcccdlflags=-fPIC				\
-    -Darchname=$archname			\
-    -Dprefix=$prefix			\
-    -Dpager=/usr/bin/sensible-pager		\
-    -Uafs					\
-    -Ud_csh					\
-    -Ud_ualarm					\
-    -Uusesfio					\
-    -Uusenm					\
-    -DDEBUGGING=$debugging			\
-    -Doptimize=\"$optimize\"			\
-    $extra_path					\
-    $opts -des
+eval /bin/bash Configure            \
+    -Duselargefiles                 \
+    -Dccflags=\'$ccflags\'          \
+    -Dcccdlflags=-fPIC              \
+    -Darchname=$archname            \
+    -Dprefix=$prefix                \
+    -Dpager=/usr/bin/sensible-pager \
+    -Uafs                           \
+    -Ud_csh                         \
+    -Ud_ualarm                      \
+    -Uusesfio                       \
+    -Uusenm                         \
+    -DDEBUGGING=$debugging          \
+    -Doptimize=\"$optimize\"        \
+    $extra_path                     \
+    $opts                           \
+    -des
