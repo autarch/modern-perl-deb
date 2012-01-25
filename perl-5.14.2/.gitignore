@@ -3,6 +3,7 @@
 DynaLoader.o
 Makefile
 Policy.sh
+UU
 av.o
 bitcount.h
 build-stamp
