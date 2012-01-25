@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # convert install paths
-# XXX - how to get full version?
-eval $(set | sed -n 's!^\(install.*\)=/opt/perl5.14.2/!\1='$(pwd)'/debian/tmp/opt/perl5.14.2/!p')
+eval $(set | \
+    MYPWD=$(pwd) perl -ne 'print if s[^(install.*)=(/opt/.+)][$1=$ENV{MYPWD}/debian/tmp$2]')
 
 # -lnsl is brought in automatically via nsswitch as required
 # -lutil is a glibc BSD compat library which we don't use

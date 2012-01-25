@@ -15,11 +15,11 @@ archname    := $(shell /bin/bash debian/config.debian --archname)
 srcdir      := $(shell pwd)
 package_name := perl-$(fullversion)-no-threads
 tmp		    = debian/tmp
-bin         = $(tmp)/opt/perl$(fullversion)/bin
-man         = $(tmp)/opt/perl$(fullversion)/man
-lib         = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)/$(archname)
-share       = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)
 target      = /opt/perl$(fullversion)-no-threads
+bin         = $(tmp)$(target)/bin
+man         = $(tmp)$(target)/man
+lib         = $(tmp)$(target)/lib/$(fullversion)/$(archname)
+share       = $(tmp)$(target)/lib/$(fullversion)
 build	    = debian/build
 patches     = debian/patches/series
 
@@ -48,6 +48,9 @@ export BUILD_BZIP2=0
 export BZIP2_INCLUDE=/usr/include
 export BZIP2_LIB=/usr/lib
 
+# needed so we can run "./perl" later on
+export LD_LIBRARY_PATH:=$(srcdir):$(LD_LIBRARY_PATH)
+
 build: build-stamp
 install: install-stamp
 
@@ -56,7 +59,6 @@ build-stamp: perl.no-threads
 
 perl.no-threads:
 	$(checkdir)
-	rm -f libperl.so* # must be built last
 	[ ! -f Makefile ] || $(MAKE) distclean
 	$(SHELL) debian/config.debian --no-threads
 	$(MAKE) perl $(test_target)
@@ -108,8 +110,7 @@ install-stamp: build-stamp
 	mkdir -p $(build)
 	cp -ar $(tmp)/* $(build)
 
-	# compress
-	# XXX - needs fixing
+	# compress man pages
 	find $(build)/*/*/man -type f ! -name *.gz -print | xargs -r gzip -9
 
 	# fixperms
