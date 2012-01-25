@@ -1,10 +1,5 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
-# Sample debian/rules that uses debhelper.
-# This file was originally written by Joey Hess and Craig Small.
-# As a special exception, when this file is copied by dh-make into a
-# dh-make output file, you may use that output file without restriction.
-# This special exception was added by Craig Small in version 0.37 of dh-make.
 
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
@@ -14,18 +9,17 @@ export SHELL = /bin/bash
 fullversion := $(shell /bin/bash debian/config.debian --full-version)
 nextversion := $(shell /bin/bash debian/config.debian --next-version)
 version     := $(shell /bin/bash debian/config.debian --version)
-installtype := $(shell /bin/bash debian/config.debian --install-type)
 test_target := $(shell /bin/bash debian/config.debian --test-target)
 strip	    := $(shell /bin/bash debian/config.debian --strip)
 archname    := $(shell /bin/bash debian/config.debian --archname)
 srcdir      := $(shell pwd)
 package_name := perl-$(fullversion)-no-threads
-tmp	    = debian/tmp
+tmp		    = debian/tmp
 bin         = $(tmp)/opt/perl$(fullversion)/bin
 man         = $(tmp)/opt/perl$(fullversion)/man
 lib         = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)/$(archname)
 share       = $(tmp)/opt/perl$(fullversion)/lib/$(fullversion)
-target      = /opt/perl$(fullversion)
+target      = /opt/perl$(fullversion)-no-threads
 build	    = debian/build
 patches     = debian/patches/series
 
@@ -57,15 +51,15 @@ export BZIP2_LIB=/usr/lib
 build: build-stamp
 install: install-stamp
 
-build-stamp: perl
+build-stamp: perl.no-threads
 	touch $@
 
-perl:
+perl.no-threads:
 	$(checkdir)
 	rm -f libperl.so* # must be built last
 	[ ! -f Makefile ] || $(MAKE) distclean
-	$(SHELL) debian/config.debian --shared
-	$(MAKE) perl
+	$(SHELL) debian/config.debian --no-threads
+	$(MAKE) perl $(test_target)
 
 clean:
 	$(checkdir)
