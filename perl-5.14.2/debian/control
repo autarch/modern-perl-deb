@@ -17,7 +17,7 @@ Description: Perl 5.14.2 without thread support
  single package that installs the perl binary, perldoc, all core modules, and
  a libperl.so.
  .
- All of this is installed under /opt/perl5.14.2 to avoid conflicts with the
- system Perl.
+ All of this is installed under /opt/perl5.14.2-no-threads to avoid conflicts
+ with the system Perl.
  .
  This package has been compiled without thread support.
