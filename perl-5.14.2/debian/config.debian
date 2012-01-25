@@ -29,57 +29,59 @@ machinename=`uname -m`
 archname="$machinename-$osname"
 
 case "$1" in
-    --static) # static perl
-    	build_type=static
-	opts="-Uuseshrplib";;
+    --no-threads)
+    	build_type=no-threads
+	    opts="-Duseshrplib -Uusethreads"
+        prefix="/opt/perl${fullversion}-no-threads";;
+
+    --threads)
+    	build_type=threads
+	    opts="-Duseshrplib -Dusethreads"
+        prefix="/opt/perl${fullversion}-threads";;
 
     --debug) # debugperl
     	build_type=debug
-	debugging=both # add -DDEBUGGING
-	opts="-Uuseshrplib";;
-
-    --shared) # shared library
-    	build_type=shared
-	opts="-Duseshrplib";;
+	    debugging=both # add -DDEBUGGING
+	    opts="-Uuseshrplib";;
 
     --version)
-	exec echo $ver;;
+	    exec echo $ver;;
 
     --full-version)
-	exec echo $fullver;;
+	    exec echo $fullver;;
 
     --next-version)
-	exec echo $nextver;;
+	    exec echo $nextver;;
 
     --strip)
     	case ",$DEB_BUILD_OPTIONS," in
-	    *[,\ ]nostrip[,\ ]*)	exec echo no;;
-	    *)				exec echo yes;;
-	esac;;
+	        *[,\ ]nostrip[,\ ]*)	exec echo no;;
+	        *)				exec echo yes;;
+	    esac;;
 
     --test-target)
     	case ",$DEB_BUILD_OPTIONS," in
-	    *[,\ ]nocheck[,\ ]*)	exit;;
-	    *[,\ ]x-perl-notest[,\ ]*)	exit;;
-	    *)				exec echo test;;
-	esac;;
+	        *[,\ ]nocheck[,\ ]*)	exit;;
+	        *[,\ ]x-perl-notest[,\ ]*)	exit;;
+	        *)				exec echo test;;
+	    esac;;
 
     --install-type)
-	# The default installation type for /usr/bin/perl of shared or
-	# static may be changed by including x-perl-static or x-perl-shared
-	# in DEB_BUILD_OPTIONS.  The default is shared except for i386 where
-	# there is a measurable performance penalty.
-	case ",$DEB_BUILD_OPTIONS," in
-	    *[,\ ]x-perl-static[,\ ]*)	exec echo static;;
-	    *[,\ ]x-perl-shared[,\ ]*)	exec echo shared;;
-	esac
-	case "$arch_cpu" in
-	    i386)			exec echo static;;
-	    *)				exec echo shared;;
-	esac;;
+	    # The default installation type for /usr/bin/perl of shared or static
+    	# may be changed by including x-perl-static or x-perl-shared in
+    	# DEB_BUILD_OPTIONS.  The default is shared except for i386 where
+    	# there is a measurable performance penalty.
+	    case ",$DEB_BUILD_OPTIONS," in
+	        *[,\ ]x-perl-static[,\ ]*)	exec echo static;;
+	        *[,\ ]x-perl-shared[,\ ]*)	exec echo shared;;
+	    esac
+	    case "$arch_cpu" in
+	        i386)			exec echo static;;
+	        *)				exec echo shared;;
+	    esac;;
 
     --archname)
-	exec echo $archname;;
+	    exec echo $archname;;
 
     *)	echo "$0: need --shared, --static, or --debug option"
     	exit 2;;
@@ -90,12 +92,12 @@ case "$arch_cpu:$build_type" in
     	ccflags="$ccflags -mieee";;
 
     m68k:shared) # work around an optimiser bug
-	ccflags="$ccflags -fno-regmove";;
+	    ccflags="$ccflags -fno-regmove";;
 esac
 
 case ",$DEB_BUILD_OPTIONS," in
     *[,\ ]noopt[,\ ]*)
-	optimize="$optimize${optimize:+ }-O0";;
+	    optimize="$optimize${optimize:+ }-O0";;
 esac
 
 if [ -n "$multiarch_dir" ]; then
@@ -107,12 +109,11 @@ cp debian/config.over .
 
 # need bash when sourcing config.over
 eval /bin/bash Configure			\
-    -Uusethreads				\
     -Duselargefiles				\
     -Dccflags=\'$ccflags\'			\
     -Dcccdlflags=-fPIC				\
     -Darchname=$archname			\
-    -Dprefix=/opt/perl5.14.2			\
+    -Dprefix=$prefix			\
     -Dpager=/usr/bin/sensible-pager		\
     -Uafs					\
     -Ud_csh					\
