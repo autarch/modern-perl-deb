@@ -61,7 +61,7 @@ perl.no-threads:
 	$(checkdir)
 	[ ! -f Makefile ] || $(MAKE) distclean
 	$(SHELL) debian/config.debian --no-threads
-	$(MAKE) perl $(test_target)
+	$(MAKE) -j 4 perl $(test_target)
 
 clean:
 	$(checkdir)
@@ -77,7 +77,7 @@ install-stamp: build-stamp
 	$(checkroot)
 	rm -rf $(tmp) $(build)
 
-	$(MAKE) install
+	$(MAKE) -j 4 install
 
 	# remove temporary prefix on install vars
 	SRCDIR="$(srcdir)" ./perl -i -pe 's!\Q$$ENV{SRCDIR}\E/$(tmp)/!/! if /install/;' \
