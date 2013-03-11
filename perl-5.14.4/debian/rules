@@ -1,0 +1,181 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+export SHELL = /bin/bash
+
+fullversion := $(shell /bin/bash debian/config.debian --full-version)
+nextversion := $(shell /bin/bash debian/config.debian --next-version)
+version     := $(shell /bin/bash debian/config.debian --version)
+test_target := $(shell /bin/bash debian/config.debian --test-target)
+strip	    := $(shell /bin/bash debian/config.debian --strip)
+archname    := $(shell /bin/bash debian/config.debian --archname)
+srcdir      := $(shell pwd)
+package_name := perl-$(fullversion)-no-threads
+tmp		    = debian/tmp
+target      = /opt/perl$(fullversion)-no-threads
+bin         = $(tmp)$(target)/bin
+man         = $(tmp)$(target)/man
+lib         = $(tmp)$(target)/lib/$(fullversion)/$(archname)
+share       = $(tmp)$(target)/lib/$(fullversion)
+build	    = debian/build
+patches     = debian/patches/series
+
+checkdir    = test -d debian
+checkroot   = test `id -u` -eq 0
+checkperl   = $(SHELL) debian/checkperl
+
+# this may differ from $(fullversion) for release candidates and the like
+package_upstream_version = $(shell dpkg-parsechangelog | \
+        sed -ne 's/-[^-]\+$$//; s/^Version: *\([0-9]\+:\)*//p')
+
+package_version = $(shell dpkg-parsechangelog | sed -n 's/^Version: *//p')
+
+# this gets prepended to the patch names in patchlevel.h
+patchprefix = DEBPKG:
+# the name of the file in debian/patches that modifies patchlevel.h
+patchlevelpatch = patchlevel
+
+# control file substitutions
+subst_upstream = -VUpstream-Version=$(package_upstream_version)
+subst_perlapi  = -Vperlapi:Provides="`./perl debian/mkprovides`"
+subst_next_upstream = -VNext-Upstream-Version=$(nextversion)
+
+# for ext/Compress-Raw-Bzip2
+export BUILD_BZIP2=0
+export BZIP2_INCLUDE=/usr/include
+export BZIP2_LIB=/usr/lib
+
+# needed so we can run "./perl" later on
+export LD_LIBRARY_PATH:=$(srcdir):$(LD_LIBRARY_PATH)
+
+build: build-stamp
+install: install-stamp
+
+build-stamp: perl.no-threads
+	touch $@
+
+perl.no-threads:
+	$(checkdir)
+	[ ! -f Makefile ] || $(MAKE) distclean
+	$(SHELL) debian/config.debian --no-threads
+	$(MAKE) perl $(test_target)
+
+clean:
+	$(checkdir)
+	$(checkroot)
+#	test -f $(patches)	# maintainer sanity check
+	[ ! -f Makefile ] || $(MAKE) distclean
+	rm -rf config.over perl./deb libperl.so* \
+	    patchlevel.bak build-stamp install-stamp t/auto debian/shlibs.local \
+	    debian/substvars debian/files debian/list.tmp $(tmp) $(build)
+
+install-stamp: build-stamp
+	$(checkdir)
+	$(checkroot)
+	rm -rf $(tmp) $(build)
+
+	$(MAKE) install
+
+	# remove temporary prefix on install vars
+	SRCDIR="$(srcdir)" ./perl -i -pe 's!\Q$$ENV{SRCDIR}\E/$(tmp)/!/! if /install/;' \
+		$(lib)/Config.pm $(lib)/Config_heavy.pl
+
+	# remove some cruft
+	rm -f $(lib)/.packlist
+
+	# replace hard links with symlinks for benefit of gzip
+	(cd $(man)/man1; \
+		rm perlthanks.1; \
+		ln -s perlbug.1 perlthanks.1; \
+		rm pstruct.1; \
+		ln -s c2ph.1 pstruct.1; \
+		rm psed.1; \
+		ln -s s2p.1 psed.1;)
+
+	mkdir -p $(tmp)/usr/local/bin
+	(cd $(tmp)/usr/local/bin; \
+		ln -s $(target)/bin/perl perl5.14.4;)
+
+	# it's a lot easier to build Perl with the library named libperl.so
+	# initially
+	(cd $(lib)/CORE; \
+		mv libperl.so libperl.so.$(fullversion); \
+		ln -s libperl.so.$(fullversion) libperl.so; \
+		ln -s libperl.so.$(fullversion) libperl.so.$(version);)
+
+	# make package directory
+	mkdir -p $(build)
+	cp -ar $(tmp)/* $(build)
+
+	# compress man pages
+	find $(build)/*/*/man -type f ! -name *.gz -print | xargs -r gzip -9
+
+	# fixperms
+	find $(build) -print | xargs -r chown -h root:root
+	find $(build) -type d -print | xargs -r chmod 755
+	find $(build) -type f -print | xargs -r chmod go=rX,u+rw,a-s
+	find $(build)/*/*/bin -type f -print | xargs -r chmod a+x
+	find $(build)/*/*/lib -type f -name \*.so\* -print | xargs -r chmod a-x
+	find $(build)/*/*/man -type f -print | xargs -r chmod 644
+
+	touch $@
+
+binary: build-stamp install-stamp
+	$(checkdir)
+	$(checkroot)
+	rm -f debian/substvars
+	test -d $(build)/DEBIAN || mkdir $(build)/DEBIAN; \
+	echo 'libperl $(version) perl-$(fullversion)-no-threads (= 5.14.4)' >$(build)/DEBIAN/shlibs; \
+	chmod 755 $(build)/DEBIAN; \
+	for c in preinst postinst prerm postrm; \
+	do \
+	test -f debian/$$c || continue; \
+	cp debian/$$c $(build)/DEBIAN/$$c; \
+	chmod 755 $(build)/DEBIAN/$$c; \
+	done; \
+	! test -f $(build)/DEBIAN/shlibs || chmod 644 $(build)/DEBIAN/shlibs; \
+	test -d $(build)/etc && find $(build)/etc -type f \
+	-printf '/etc/%P\n' >$(build)/DEBIAN/conffiles; \
+	(cd $(build); find opt -type f -print | xargs -r md5sum) \
+	>$(build)/DEBIAN/md5sums; \
+	find $(build)/*/*/lib -type f \
+	\( -perm +111 -o -name \*.so\* \) -print | \
+	fgrep -v /usr/lib/debug/ | \
+	xargs -r dpkg-shlibdeps -S$(srcdir)/$(build)/$(package_name) 2>&1 | \
+	fgrep -v 'File format not recognized'; # scripts \
+	dpkg-gencontrol -p$(package_name) -isp -P$(build) $(subst_perlapi) $(subst_upstream); \
+	dpkg-gencontrol -p$(package_name) -isp -P$(build) $(subst_upstream) $(subst_next_upstream); \
+	dpkg --build $(build) ..;
+
+# maintainer targets
+new-build: $(patches) refresh-patchlevel
+	test -d .git # only for the git repository
+	git checkout refs/heads/master # detach from 'master'
+	git rm .top*
+	git add debian/patches
+	git add $(patches) patchlevel.h
+	git commit -m 'export all the patches'
+
+$(patches):
+	test -d .git # patch export only works in the TopGit repository
+	-rmdir debian/patches
+	tg export --quilt debian/patches
+	rm debian/patches/master.diff
+	sed -i '/master.diff/ d' $(patches)
+
+refresh-patchlevel: $(patches)
+	sed -i '/$(patchprefix)/d' patchlevel.h
+	grep -q $(patchlevelpatch) $(patches) || echo '$(patchlevelpatch) -p1' >> $(patches)
+	sed s/VERSION/$(package_version)/ debian/$(patchlevelpatch).head > debian/patches/$(patchlevelpatch)
+	perl debian/list-patches $(patchprefix) < $(patches) | \
+	  xargs -d\\n -r perl -x patchlevel.h
+	diff --unified=0 patchlevel.bak patchlevel.h | \
+	  filterdiff --remove-timestamps --addprefix perl/ >> debian/patches/$(patchlevelpatch)
+	$(RM) patchlevel.bak
+
+.NOTPARALLEL:
+
+.PHONY: build clean binary-indep binary-arch binary install patch unpatch new-build refresh-patchlevel

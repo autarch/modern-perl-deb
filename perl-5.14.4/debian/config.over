@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# convert install paths
+eval $(set | \
+    MYPWD=$(pwd) perl -ne 'print if s[^(install.*)=(/opt/.+)][$1=$ENV{MYPWD}/debian/tmp$2]')
+
+# -lnsl is brought in automatically via nsswitch as required
+# -lutil is a glibc BSD compat library which we don't use
+for var in libs perllibs
+do
+    eval val=\"\$$var\"
+    tmp=
+    for t in $val
+    do
+	case $t in
+	    -lnsl|-lutil) ;;
+	    *) tmp="$tmp${tmp:+ }$t"
+	esac
+    done
+
+    eval $var=\"$tmp\"
+done
+i_libutil='undef'
+
+# set generic email addresses, host/domain names
+cf_by='Dave Rolsky'
+cf_email=autarch@urth.org
+perladmin=root@localhost
+mydomain=
+myhostname=localhost

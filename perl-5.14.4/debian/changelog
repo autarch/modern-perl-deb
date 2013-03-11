@@ -1,0 +1,5 @@
+perl (5.14.4-1) unstable; urgency=low
+
+  * Initial release
+
+ -- Dave Rolsky <autarch@urth.org>  Mon, 11 Mar 2013 16:49:00 -0600

@@ -1,0 +1,1 @@
+shlibs:Depends=libbz2-1.0, libc6 (>= 2.11), libdb4.8, libgdbm3 (>= 1.8.3)
